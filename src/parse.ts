@@ -26,18 +26,9 @@ function t (node: Node, path: string, parent: Node) {
     return new ConstantNode(node.value.toFixed(8));
   }*/
 
-  if (node.type === 'SymbolNode') {
-    if (node.name === 'c' || node.name === 'z') {
-      return node
-    }
-    if (node.name === 'i') {
-      return new SymbolNode("vec2(0, 1)");
-    }
-  }
   
   const m = mapper.find((m) => m.type === node.type && m.fn === node.fn);
   if (m) {
-    console.log(node.fn);
     // replace the function name
     return new FunctionNode(m.replace, node.args);
   }
@@ -46,24 +37,40 @@ function t (node: Node, path: string, parent: Node) {
     if (node.fn === 'pow' && node.args[1].type === 'ConstantNode' && Number.isInteger(node.args[1].value)) {
       return new FunctionNode('cpowi', [node.args[0], node.args[1]]);
     }
-  }
+    if (node.fn === 'pow') {
+      return new FunctionNode('cpow', [node.args[0], node.args[1]]);
+    }
+  } 
   return node;
 }
 
 function formatConstants(node: Node) {
   if (node.type === 'ConstantNode') {
-    return new ConstantNode(node.value.toFixed(8));
+    return new ConstantNode(`vec2(${node.value.toFixed(8)}, 0.0)`);
   }
+  if (node.type === 'SymbolNode') {
+    if (node.name === 'i') {
+      return new SymbolNode("vec2(0.0, 1.0)");
+    }
+  }
+  
   return node;
 }
 
 
-export const parseExpression = (expression: string, uniformList: { variable: string; value: number }[]) => {
+export const parseExpression = (expression: string, uniformList: { variable: string; value: number | number[]; uniformType: string }[]) => {
   try {
     const node = parse(expression);
     let c = node.transform(function formatUniforms(node: Node, path, parent) {
       if (node.type === 'SymbolNode' && !protectedNames.includes(node.name)) {
-        return new SymbolNode(`iFloat${uniformList.findIndex((u) => u.variable === node.name)}`);
+        let uniform = uniformList.find((u) => u.variable === node.name);
+        console.log(uniformList)
+        if (uniform?.uniformType === 'real') {
+          return new SymbolNode(`iTuple${uniformList.findIndex((u) => u.variable === node.name)}`);
+        }
+        if (uniform?.uniformType === 'complex') {
+          return new SymbolNode(`iTuple${uniformList.findIndex((u) => u.variable === node.name)}`);
+        }
       }
       return node;
     })
