@@ -1,14 +1,24 @@
 <script>
-    import { WebGlShader } from "svader";
+	import { WebGlShader } from 'svader';
 
-    const { anonFunction, zoom, xyOffset, iterations, escapeRadius, uniformList, iterateFromZero, colorFunction } = $props();
+	const {
+		anonFunction,
+		zoom,
+		xyOffset,
+		iterations,
+		escapeRadius,
+		uniformList,
+		iterateFromZero,
+		colorFunction,
+		showOrbits,
+		orbitPoint
+	} = $props();
 
+	// TODO:
+	// Add extra uniforms
 
-    // TODO:
-    // Add extra uniforms
-    
-    const shaderCode = $derived(
-        `#version 300 es
+	const shaderCode = $derived(
+		`#version 300 es
 
         precision highp float;
 
@@ -20,6 +30,7 @@
         uniform float u_zoom;
         uniform float u_iterations;
         uniform float u_escape;
+        uniform vec2 u_orbit;
         uniform vec2 iTuple0;
         uniform vec2 iTuple1;
         uniform vec2 iTuple2;
@@ -35,6 +46,16 @@
             return atan(a.y, a.x);
         }
 
+        //https://www.shadertoy.com/view/MlcGDB
+        float segment(vec2 P, vec2 A, vec2 B, float r) 
+        {
+            vec2 g = B - A;
+            vec2 h = P - A;
+            float d = length(h - g * clamp(dot(g, h) / dot(g,g), 0.0, 1.0));
+            return smoothstep(r, 0.5*r, d);
+        }
+
+
         // Ty https://www.shadertoy.com/view/MsS3Wc iquilez <3
         vec3 hsb2rgb( in vec3 c ){
             vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),
@@ -49,7 +70,7 @@
         //#define COLORFUN 0.5 + 0.5*cos(2.*PI*(mix(i,SMOOTH,1.)/ITERATION + mix(vec3(0.00, 0.10, 0.20), vec3(0.30, 0.20, 0.20), (sin(t/15.)+1.)/2.) ))
         //#define COLORFUN 0.5 + 0.5*cos(3.13938 + (i${iterateFromZero ? '-1.0' : ''})*vec3(0.2,.25,0.25)+vec3(0.219, 0.243, 0.735))
         //#define COLORFUN hsb2rgb(vec3((atan(z.y,z.x)/6.28318530718)+0.5, length(z)*2.0, 1.0));
-        #define COLORFUN ${colorFunction == 'iteration' ? `0.5 + 0.5*cos(3.13938 + (i${iterateFromZero ? '-1.0' : ''})*vec3(0.2,.25,0.25)+vec3(0.219, 0.243, 0.735))` : `hsb2rgb(vec3((atan(z.y,z.x)/6.28318530718)+0.5, length(z)*2.0, 1.0));` }
+        #define COLORFUN ${colorFunction == 'iteration' ? `0.5 + 0.5*cos(3.13938 + (i${iterateFromZero ? '-1.0' : ''})*vec3(0.2,.25,0.25)+vec3(0.219, 0.243, 0.735))` : `hsb2rgb(vec3((atan(z.y,z.x)/6.28318530718)+0.5, length(z)*2.0, 1.0));`}
         
         #define ITERATION 160.0
         #define ANONFUNCTION ${anonFunction}
@@ -117,45 +138,84 @@
 
                 z = ANONFUNCTION;
             }
-            ${colorFunction === "domain" ? "outv = COLORFUN;" : ""} 
+            ${colorFunction === 'domain' ? 'outv = COLORFUN;' : ''} 
+            return outv;
+        }
+
+                
+        //Draws the points and segments of the orbit
+        vec3 orbits(in vec2 or){
+            vec2 z,p2,c;
+            z = u_orbit;
+            c = z;
+            vec3 outv;
+            
+            for (float i = 0.0; i < 30.; i++){
+                //p2 = vec2(p1.x*p1.x-p1.y*p1.y,2.*p1.x*p1.y)+c;
+                p2 = ANONFUNCTION;
+
+                float size = u_zoom;
+
+                float j = clamp(i,0.015,.02);
+                float intensity = segment(or, z, p2, 0.004/exp(clamp(size,0.,2.)));
+                outv = mix(outv, vec3(0.5), intensity);
+                if (length(or-z)< (0.03-j)/exp(clamp(size,0.,4.0))){
+                    outv =  vec3(1.0, 1.0-clamp(i, 0., 0.8), 0.3);
+                }
+                
+                z = p2;
+
+                if (length(p2) > u_escape*2.0) {
+                    break;
+                }
+            }
+            
             return outv;
         }
 
         void main() {
-            vec2 pos = gl_FragCoord.xy - u_offset - xy_offset;
+            vec2 pos = gl_FragCoord.xy - xy_offset;
             vec2 a = u_resolution;
             vec2 st = ((pos / u_resolution.y) - vec2(0.88888888, 0.50))/exp(u_zoom) + xy_offset;
             vec3 col;
-            col = anon(st);
-            
+            //col = anon(st);
+            //col = length(anon(st))/5. > length(orbits(st)) ? anon(st) : orbits(st);
+            ${!showOrbits ? 'col = anon(st);' : 'col = length(anon(st))/5. > length(orbits(st)) ? anon(st) : orbits(st);'}
+
             fragColor = vec4(col, 1.0);
         }
-    `);
+    `
+	);
 
-    
-    //let uniformFloats = $derived(uniformList.filter((uniform) => {return uniform.uniformType === 'real'}))
-    //let uniformTuples = $derived(uniformList.filter((uniform) => {return uniform.uniformType === 'complex'}))
+	//let uniformFloats = $derived(uniformList.filter((uniform) => {return uniform.uniformType === 'real'}))
+	//let uniformTuples = $derived(uniformList.filter((uniform) => {return uniform.uniformType === 'complex'}))
 
-    //let uniformFloatValues = $derived(uniformFloats.map((uniform, index) => ({name: `iFloat${index}`, value: [uniform.value, 0.0], type: "vec2"})));
-    
-    //let uniformTupleValues = $derived(uniformTuples.map((uniform, index) => ({name: `iTuple${index}`, value: uniform.value, type: "vec2"})));
-    let uniformValues = $derived(uniformList.map((uniform, index) => ({name: `iTuple${index}`, value: uniform.uniformType === "real" ? [uniform.value, 0.0] : uniform.value, type: "vec2"})));
+	//let uniformFloatValues = $derived(uniformFloats.map((uniform, index) => ({name: `iFloat${index}`, value: [uniform.value, 0.0], type: "vec2"})));
 
+	//let uniformTupleValues = $derived(uniformTuples.map((uniform, index) => ({name: `iTuple${index}`, value: uniform.value, type: "vec2"})));
+	let uniformValues = $derived(
+		uniformList.map((uniform, index) => ({
+			name: `iTuple${index}`,
+			value: uniform.uniformType === 'real' ? [uniform.value, 0.0] : uniform.value,
+			type: 'vec2'
+		}))
+	);
 
-    let parameters = $derived([
-        { name: "u_resolution", value: "resolution" },
-        { name: "u_offset", value: "offset" },
-        { name: "u_zoom", type: "float", value: zoom },
-        { name: "xy_offset", type: "vec2", value: [xyOffset[0], xyOffset[1]] },
-        { name: "u_iterations", type: "float", value: iterations+iterateFromZero },
-        { name: "u_escape", type: "float", value: escapeRadius },
-    ].concat(uniformValues));
+	let parameters = $derived(
+		[
+			{ name: 'u_resolution', value: 'resolution' },
+			{ name: 'u_offset', value: 'offset' },
+			{ name: 'u_zoom', type: 'float', value: zoom },
+			{ name: 'xy_offset', type: 'vec2', value: [xyOffset[0], xyOffset[1]] },
+			{ name: 'u_iterations', type: 'float', value: iterations + iterateFromZero },
+			{ name: 'u_escape', type: 'float', value: escapeRadius },
+			{ name: 'u_orbit', type: 'vec2', value: orbitPoint }
+		].concat(uniformValues)
+	);
 </script>
 
 {#key shaderCode}
-    <WebGlShader
-    code={shaderCode}
-    parameters={parameters}>
-    <div class="fallback">{anonFunction}</div>
-    </WebGlShader>
+	<WebGlShader code={shaderCode} {parameters}>
+		<div class="fallback">{anonFunction}</div>
+	</WebGlShader>
 {/key}

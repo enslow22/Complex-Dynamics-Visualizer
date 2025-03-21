@@ -1,11 +1,11 @@
 import { parse, ConstantNode, OperatorNode, FunctionNode, SymbolNode } from 'mathjs';
 
 const mapper = [
-  {type: 'OperatorNode', fn: 'multiply', replace: 'cmul'},
-  {type: 'OperatorNode', fn: 'divide', replace: 'cdiv'},
-  {type: 'OperatorNode', fn: 'sin', replace: 'csin'},
-  {type: 'OperatorNode', fn: 'cos', replace: 'ccos'},
-  {type: 'OperatorNode', fn: 'tan', replace: 'ctan'},
+  { type: 'OperatorNode', fn: 'multiply', replace: 'cmul' },
+  { type: 'OperatorNode', fn: 'divide', replace: 'cdiv' },
+  { type: 'OperatorNode', fn: 'sin', replace: 'csin' },
+  { type: 'OperatorNode', fn: 'cos', replace: 'ccos' },
+  { type: 'OperatorNode', fn: 'tan', replace: 'ctan' },
 ]
 
 const protectedNames = ['c', 'z', 'i', 'abs', 'sin', 'cos', 'tan'];
@@ -19,14 +19,14 @@ function transformDepthFirst(node: Node, callback: Function) {
   return callback(nodeWithUpdatedChilds);
 }
 
-function t (node: Node, path: string, parent: Node) {
+function t(node: Node, path: string, parent: Node) {
 
   /** 
   if (node.type === 'ConstantNode') {
     return new ConstantNode(node.value.toFixed(8));
   }*/
 
-  
+
   const m = mapper.find((m) => m.type === node.type && m.fn === node.fn);
   if (m) {
     // replace the function name
@@ -40,7 +40,7 @@ function t (node: Node, path: string, parent: Node) {
     if (node.fn === 'pow') {
       return new FunctionNode('cpow', [node.args[0], node.args[1]]);
     }
-  } 
+  }
   return node;
 }
 
@@ -53,7 +53,7 @@ function formatConstants(node: Node) {
       return new SymbolNode("vec2(0.0, 1.0)");
     }
   }
-  
+
   return node;
 }
 
@@ -77,7 +77,7 @@ export const parseExpression = (expression: string, uniformList: { variable: str
 
     let a = transformDepthFirst(c, t);
     let b = parse(a.toString()).transform(formatConstants);
-    
+
 
     return b.toString().replace(/"/g, '');
   } catch (e) {
